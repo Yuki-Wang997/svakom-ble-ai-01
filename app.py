@@ -1,35 +1,40 @@
-from flask import Flask, request
-import asyncio
-from bleak import BleakClient
-import os
+from flask import Flask, request, jsonify
+import json, time, os
 
 app = Flask(__name__)
+STATE_FILE = "/tmp/state.json"
 
-TOY_ADDR = os.environ.get("BLEDEVICE", "FF:26:01:5D:F9:5F")
-WRITE_UUID = "0000ffe1-0000-1000-8000-00805f9b34fb"
-
-def build_cmd(intensity):
-    return bytes([0x55, 0x04, 0x00, 0x00, 0x01, intensity, 0xAA])
-
-@app.route('/set')
-def set_intensity():
+def read_state():
     try:
-        intensity = int(request.args.get('intensity', 0))
-        asyncio.run(send_cmd(intensity))
-        return f"OK {intensity}"
-    except Exception as e:
-        return f"Error: {e}"
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    except:
+        return {"cmd": "stop", "mode": 1, "intensity": 0, "updated_at": 0}
 
-async def send_cmd(intensity):
-    try:
-        async with BleakClient(TOY_ADDR) as client:
-            await client.write_gatt_char(WRITE_UUID, build_cmd(intensity))
-    except Exception as e:
-        print(f"Connection error: {e}")
+def write_state(s):
+    s["updated_at"] = time.time()
+    with open(STATE_FILE, "w") as f:
+        json.dump(s, f)
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "Toy Control Running"
+    return "Toy Bridge Running"
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+@app.route("/state")
+def state():
+    return jsonify(read_state())
+
+@app.route("/set")
+def set_cmd():
+    mode = int(request.args.get("mode", 1))
+    intensity = int(request.args.get("intensity", 0))
+    write_state({"cmd": "set", "mode": mode, "intensity": intensity})
+    return "OK"
+
+@app.route("/stop")
+def stop():
+    write_state({"cmd": "stop", "mode": 0, "intensity": 0})
+    return "OK"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
