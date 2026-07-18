@@ -36,5 +36,10 @@ def stop():
     write_state({"cmd": "stop", "mode": 0, "intensity": 0})
     return "OK"
 
+@app.route("/bridge")
+def bridge():
+    with open("bridge.html") as f:
+        return f.read()
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
