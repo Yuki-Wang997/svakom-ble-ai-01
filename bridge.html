@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Toy Bridge</title></head>
+<body>
+<button id="btn">连接蓝牙</button>
+<p id="status">未连接</p>
+<script>
+const SERVER = "https://svakom-ble-ai-01-production.up.railway.app";
+const SERVICE = "0000ffe0-0000-1000-8000-00805f9b34fb";
+const WRITE   = "0000ffe1-0000-1000-8000-00805f9b34fb";
+
+let writeChar = null;
+let lastUpdated = 0;
+
+document.getElementById("btn").onclick = async () => {
+  const device = await navigator.bluetooth.requestDevice({
+    filters: [{services: [SERVICE]}]
+  });
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService(SERVICE);
+  writeChar = await service.getCharacteristic(WRITE);
+  document.getElementById("status").textContent = "已连接：" + device.name;
+  poll();
+};
+
+async function poll() {
+  setInterval(async () => {
+    const res = await fetch(SERVER + "/state");
+    const s = await res.json();
+    if (s.updated_at > lastUpdated) {
+      lastUpdated = s.updated_at;
+      const cmd = s.cmd === "stop"
+        ? new Uint8Array([0x55,0x04,0x00,0x00,0x01,0x00,0xAA])
+        : new Uint8Array([0x55,0x04,0x00,0x00,s.mode,s.intensity,0xAA]);
+      await writeChar.writeValueWithoutResponse(cmd);
+    }
+  }, 1000);
+}
+</script>
+</body>
+</html>
